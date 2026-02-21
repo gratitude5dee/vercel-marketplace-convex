@@ -400,6 +400,48 @@ export const processFinalTranscript = internalAction({
         taskKey: decision.taskKey,
         assigneeUserId: decision.assigneeUserId,
       });
+
+      // Dispatch a parallel worker Vapi call for the assigned participant.
+      // Look up participant info and phone channel for the workspace.
+      const assignedTask = graph.tasks.find((t) => t.taskKey === decision.taskKey);
+      const assignedPersona = personas.find((p) => p.userId === decision.assigneeUserId);
+
+      if (assignedTask && assignedPersona) {
+        // Get workspace phone channel
+        const sessionInfo = await ctx.runQuery(internalApi.sessions.getByIdInternal, {
+          sessionId: args.sessionId,
+        }) as { workspaceId: string } | null;
+
+        let phoneNumber: string | undefined;
+        if (sessionInfo) {
+          const channel = await ctx.runQuery(internalApi.phoneChannels.getDefaultInternal, {
+            workspaceId: sessionInfo.workspaceId,
+          });
+          phoneNumber = channel?.phoneNumber;
+        }
+
+        if (phoneNumber) {
+          const workerCallId = await ctx.runMutation(internalApi.workerCalls.create, {
+            sessionId: args.sessionId,
+            taskKey: decision.taskKey,
+            participantUserId: decision.assigneeUserId,
+            participantName: assignedPersona.displayName ?? assignedPersona.userId,
+            phoneNumber,
+          });
+
+          await ctx.scheduler.runAfter(0, internalApi.workerDispatch.dispatchCall, {
+            sessionId: args.sessionId,
+            workerCallId,
+            taskKey: decision.taskKey,
+            taskLabel: assignedTask.label,
+            taskDescription: assignedTask.description ?? assignedTask.label,
+            participantUserId: decision.assigneeUserId,
+            participantName: assignedPersona.displayName ?? assignedPersona.userId,
+            participantStyle: assignedPersona.style,
+            phoneNumber,
+          });
+        }
+      }
     }
 
     if (decision.actionType === "UPDATE" && decision.taskKey) {

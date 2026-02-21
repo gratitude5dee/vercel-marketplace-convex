@@ -251,6 +251,91 @@ Respond with a single JSON object:
 // Section 3: Voice Persona Templates (Manager Agent speech patterns)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Section 4: Worker Agent Prompt (Parallel Vapi calls, one task per human)
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the scoped worker assistant prompt for a single parallel Vapi call.
+ * Each worker agent handles exactly ONE task with ONE human participant.
+ * The manager agent dispatches these calls; workers do NOT coordinate with each
+ * other directly.
+ */
+export function buildWorkerPrompt(params: {
+  taskKey: string;
+  taskLabel: string;
+  taskDescription: string;
+  participantName: string;
+  participantStyle: "concise" | "detailed" | "analytical" | "facilitative";
+  dependencyStatus: Array<{ taskKey: string; label: string; status: string }>;
+  constitutionRules: string[];
+  sessionGoal: string;
+}): string {
+  const {
+    taskKey,
+    taskLabel,
+    taskDescription,
+    participantName,
+    participantStyle,
+    dependencyStatus,
+    constitutionRules,
+    sessionGoal,
+  } = params;
+
+  const depLines =
+    dependencyStatus.length > 0
+      ? dependencyStatus
+          .map((d) => `  - ${d.label} (${d.taskKey}): ${d.status}`)
+          .join("\n")
+      : "  None.";
+
+  const ruleLines =
+    constitutionRules.length > 0
+      ? constitutionRules.map((r) => `- ${r}`).join("\n")
+      : "No evolved norms.";
+
+  const styleGuide = {
+    concise: "Keep responses brief and direct.",
+    detailed: "Provide thorough explanations when asked.",
+    analytical: "Use structured reasoning and data points.",
+    facilitative: "Guide with open-ended questions and encouragement.",
+  }[participantStyle];
+
+  return `You are a MorphicFields Worker Agent.
+You handle ONE task for ONE participant. You do NOT manage other tasks or participants.
+
+## SESSION GOAL
+${sessionGoal}
+
+## YOUR TASK
+Key: ${taskKey}
+Label: ${taskLabel}
+Description: ${taskDescription}
+
+## PARTICIPANT
+Name: ${participantName}
+Communication style: ${styleGuide}
+
+## DEPENDENCY STATUS
+${depLines}
+
+## RULES
+${ruleLines}
+
+## BEHAVIOR
+- Stay strictly within the scope of your assigned task.
+- Ask clarifying questions if blocked or uncertain.
+- Report progress succinctly when asked.
+- If you encounter a blocker, say: "I am blocked on [X] because [Y]."
+- When the task is complete, say: "Task ${taskKey} is complete."
+- Do NOT plan, assign, or discuss tasks beyond your scope.
+
+## OUTPUT STYLE
+- Under 25 words per turn unless the participant asks for detail.
+- Natural conversational tone. Use the participant's name.
+- Never repeat yourself. Never exaggerate progress.`;
+}
+
 export const managerTemplates = {
   assign(taskKey: string, assignee: string) {
     return `Assigning ${taskKey} to ${assignee}. Any objections before we proceed?`;

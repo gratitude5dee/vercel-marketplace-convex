@@ -10,6 +10,17 @@ import { TaskGraphPanel } from "@/components/panels/TaskGraphPanel";
 // Until then it renders a placeholder showing the session ID.
 // ---------------------------------------------------------------------------
 
+interface WorkerCall {
+  id: string;
+  taskKey: string;
+  participantName: string;
+  status: "pending" | "ringing" | "active" | "completed" | "failed";
+  startedAt: number;
+  endedAt?: number;
+}
+
+const demoWorkerCalls: WorkerCall[] = [];
+
 const demoTasks = [
   { _id: "t1", taskKey: "goal-brief", label: "Confirm Goal Brief", description: "Validate objective and decision boundaries.", status: "ready" as const, priority: 1, assigneeUserId: undefined },
   { _id: "t2", taskKey: "dependency-map", label: "Map Dependencies", description: "Capture sequencing and blockers.", status: "pending" as const, priority: 1, assigneeUserId: undefined },
@@ -79,6 +90,43 @@ export default function SessionDashboardPage() {
           </div>
         </section>
 
+        {/* Active Worker Calls */}
+        <section className="border border-foreground/10 rounded-lg p-4">
+          <h2 className="text-sm font-semibold mb-3">Active Worker Calls</h2>
+          {demoWorkerCalls.length === 0 ? (
+            <p className="text-xs text-foreground/50">
+              No active worker calls. When the manager assigns a task to a
+              participant, a parallel Vapi call appears here.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {demoWorkerCalls.map((call) => (
+                <li
+                  key={call.id}
+                  className="flex items-center justify-between border border-foreground/10 rounded-md px-3 py-2"
+                >
+                  <div className="flex items-center gap-3">
+                    <WorkerStatusBadge status={call.status} />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">
+                        {call.participantName}
+                      </span>
+                      <span className="text-xs text-foreground/50 font-mono">
+                        {call.taskKey}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-foreground/50">
+                    {call.endedAt
+                      ? `${((call.endedAt - call.startedAt) / 1000).toFixed(0)}s`
+                      : `${((Date.now() - call.startedAt) / 1000).toFixed(0)}s`}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {/* Bottom panels */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <section className="border border-foreground/10 rounded-lg p-4">
@@ -100,6 +148,25 @@ export default function SessionDashboardPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+const workerStatusColors: Record<string, string> = {
+  pending: "bg-foreground/30 text-foreground/70",
+  ringing: "bg-yellow-500/20 text-yellow-400",
+  active: "bg-green-500/20 text-green-400",
+  completed: "bg-foreground/10 text-foreground/50",
+  failed: "bg-red-500/20 text-red-400",
+};
+
+function WorkerStatusBadge({ status }: { status: string }) {
+  const cls = workerStatusColors[status] ?? "bg-foreground/10 text-foreground/50";
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${cls}`}
+    >
+      {status}
+    </span>
   );
 }
 

@@ -161,13 +161,86 @@ export const processVapiEvent = internalAction({
       }
 
       const callId = payload?.message?.call?.id;
-      const metadataSessionId = payload?.sessionId ?? payload?.message?.metadata?.sessionId;
+      const metadata = payload?.message?.metadata ?? payload?.metadata ?? {};
+      const metadataSessionId = payload?.sessionId ?? metadata?.sessionId;
+      const isWorkerCall = metadata?.role === "worker";
+      const workerCallId = metadata?.workerCallId;
       let resolvedSessionId: string | null = metadataSessionId ?? null;
 
       if (!resolvedSessionId && callId) {
         resolvedSessionId = await ctx.runQuery(internalApi.sessions.getByCallId, { callId });
       }
 
+      // --- Worker call routing ---
+      if (isWorkerCall && workerCallId) {
+        if (messageType === "status-update") {
+          const vapiStatus = payload?.message?.status ?? "";
+          const statusMap: Record<string, string> = {
+            ringing: "ringing",
+            "in-progress": "active",
+            ended: "completed",
+            failed: "failed",
+            "no-answer": "failed",
+            busy: "failed",
+          };
+          const mappedStatus = statusMap[vapiStatus] ?? null;
+          if (mappedStatus) {
+            await ctx.runMutation(internalApi.workerCalls.updateStatus, {
+              workerCallId,
+              status: mappedStatus,
+              vapiCallId: callId,
+            });
+          }
+        }
+
+        if (
+          messageType === "transcript" &&
+          payload?.message?.transcriptType === "final" &&
+          payload?.message?.transcript?.text &&
+          resolvedSessionId
+        ) {
+          await ctx.runMutation(internalApi.transcripts.appendFromWebhook, {
+            sessionId: resolvedSessionId,
+            sourceEventId: eventId,
+            role: "user",
+            speakerId: metadata.participantUserId ?? "worker-participant",
+            text: payload.message.transcript.text,
+            behaviorTag: "elicit",
+          });
+        }
+
+        if (messageType === "end-of-call-report") {
+          await ctx.runMutation(internalApi.workerCalls.updateStatus, {
+            workerCallId,
+            status: "completed",
+            summary: payload?.message?.summary ?? "Call ended.",
+          });
+
+          // Mark task as completed if the worker reported completion
+          if (resolvedSessionId && metadata.taskKey) {
+            const summary = (payload?.message?.summary ?? "").toLowerCase();
+            if (summary.includes("complete") || summary.includes("done")) {
+              await ctx.runMutation(internalApi.tasks.updateTaskStatusInternal, {
+                sessionId: resolvedSessionId,
+                taskKey: metadata.taskKey,
+                status: "completed",
+              });
+            }
+          }
+        }
+
+        await ctx.runMutation(internalApi.webhooks.markEvent, {
+          eventDocId,
+          status: "processed",
+        });
+
+        return {
+          status: "processed",
+          eventType: `worker:${messageType}`,
+        };
+      }
+
+      // --- Manager call routing (existing) ---
       if (messageType === "status-update" && callId && resolvedSessionId) {
         await ctx.runMutation(internalApi.sessions.bindVapiCall, {
           sessionId: resolvedSessionId,

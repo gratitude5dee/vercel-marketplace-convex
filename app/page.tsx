@@ -35,6 +35,13 @@ interface TaskEdge {
   toTaskKey: string;
 }
 
+interface PhoneChannel {
+  id: string;
+  phoneNumber: string;
+  label: string;
+  isActive: boolean;
+}
+
 /* ---------- seed data ---------------------------------------------------- */
 
 const defaultTaskSeed = {
@@ -130,6 +137,9 @@ function Dashboard() {
     null,
   );
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [phoneChannels, setPhoneChannels] = useState<PhoneChannel[]>([]);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneLabelInput, setPhoneLabelInput] = useState("Main Line");
 
   /* ---- derived --------------------------------------------------------- */
   const filteredSessions = useMemo(
@@ -162,6 +172,36 @@ function Dashboard() {
     setWorkspaces((prev) => [...prev, ws]);
     setSelectedWorkspace(id);
     showFeedback(`Workspace "${trimmed}" created.`);
+  };
+
+  const handleSetPhoneChannel = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = phoneInput.trim();
+    if (!trimmed || !selectedWorkspace) return;
+    const id = localId("phone");
+    setPhoneChannels((prev) => [
+      ...prev,
+      {
+        id,
+        phoneNumber: trimmed,
+        label: phoneLabelInput.trim() || "Main Line",
+        isActive: true,
+      },
+    ]);
+    setPhoneInput("");
+    showFeedback(`Phone channel "${trimmed}" added.`);
+  };
+
+  const handleToggleChannel = (channelId: string) => {
+    setPhoneChannels((prev) =>
+      prev.map((ch) =>
+        ch.id === channelId ? { ...ch, isActive: !ch.isActive } : ch,
+      ),
+    );
+  };
+
+  const handleRemoveChannel = (channelId: string) => {
+    setPhoneChannels((prev) => prev.filter((ch) => ch.id !== channelId));
   };
 
   const handleCreateSession = (e: FormEvent) => {
@@ -250,6 +290,71 @@ function Dashboard() {
             Create Session + Seed Graph
           </button>
         </form>
+      </section>
+
+      {/* phone channel config */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Phone Channel</h2>
+        <p className="text-xs text-foreground/50 leading-relaxed">
+          Configure a shared phone number for multi-human voice interactions.
+          Worker agents call participants on this number.
+        </p>
+        <form onSubmit={handleSetPhoneChannel} className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <input
+              className="flex-1 border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-foreground/30"
+              value={phoneInput}
+              onChange={(e) => setPhoneInput(e.target.value)}
+              placeholder="+1 555 123 4567"
+            />
+            <input
+              className="w-36 border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-foreground/30"
+              value={phoneLabelInput}
+              onChange={(e) => setPhoneLabelInput(e.target.value)}
+              placeholder="Label"
+            />
+            <button
+              type="submit"
+              disabled={!selectedWorkspace || !phoneInput.trim()}
+              className="shrink-0 bg-foreground text-background px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Set Channel
+            </button>
+          </div>
+        </form>
+
+        {phoneChannels.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {phoneChannels.map((ch) => (
+              <li
+                key={ch.id}
+                className="flex items-center justify-between border border-foreground/10 rounded-md px-3 py-2"
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`inline-block w-2 h-2 rounded-full ${ch.isActive ? "bg-green-500" : "bg-foreground/30"}`}
+                  />
+                  <span className="text-sm font-mono">{ch.phoneNumber}</span>
+                  <span className="text-xs text-foreground/50">{ch.label}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleToggleChannel(ch.id)}
+                    className="text-xs underline underline-offset-2 text-foreground/60 hover:text-foreground transition-colors"
+                  >
+                    {ch.isActive ? "Disable" : "Enable"}
+                  </button>
+                  <button
+                    onClick={() => handleRemoveChannel(ch.id)}
+                    className="text-xs underline underline-offset-2 text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* session list */}

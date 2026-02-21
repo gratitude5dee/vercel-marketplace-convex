@@ -12,6 +12,7 @@ import {
   workspaceRoleValidator,
   invocationTriggerValidator,
   constitutionRuleValidator,
+  workerCallStatusValidator,
 } from "./lib/contracts";
 
 export default defineSchema({
@@ -166,6 +167,32 @@ export default defineSchema({
   })
     .index("by_session", ["sessionId"])
     .index("by_call_id", ["callId"]),
+
+  workerCalls: defineTable({
+    sessionId: v.id("sessions"),
+    taskKey: v.string(),
+    participantUserId: v.string(),
+    participantName: v.optional(v.string()),
+    vapiCallId: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+    status: workerCallStatusValidator,
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+    summary: v.optional(v.string()),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_vapi_call_id", ["vapiCallId"])
+    .index("by_session_and_participant", ["sessionId", "participantUserId"])
+    .index("by_session_and_status", ["sessionId", "status"]),
+
+  phoneChannels: defineTable({
+    workspaceId: v.id("workspaces"),
+    phoneNumber: v.string(),
+    vapiPhoneNumberId: v.optional(v.string()),
+    label: v.string(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 
   webhookEvents: defineTable({
     provider: v.string(),

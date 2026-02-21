@@ -117,6 +117,21 @@ export const behaviorTagValidator = v.union(
   v.literal("approve"),
 );
 
+export type WorkerCallStatus =
+  | "pending"
+  | "ringing"
+  | "active"
+  | "completed"
+  | "failed";
+
+export const workerCallStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("ringing"),
+  v.literal("active"),
+  v.literal("completed"),
+  v.literal("failed"),
+);
+
 export const constitutionRuleValidator = v.object({
   text: v.string(),
   source: v.union(v.literal("seed"), v.literal("evolved"), v.literal("manual")),
