@@ -2,6 +2,9 @@
 
 Aura is a production-oriented **Next.js + Convex** dashboard for orchestrating **multi-human collaboration sessions** led by a **voice Manager Agent** (Vapi). It’s built around the *Human Tool* paradigm: **the AI orchestrates** and selectively “calls” humans for the things humans are uniquely good at—preferences, judgment, creativity, and authorization.
 
+Human Tool Paper : https://arxiv.org/pdf/2602.12953
+Orchestrating Human-AI Teams Paper : https://arxiv.org/pdf/2510.02557
+
 ---
 
 ## Why this exists (the “Human Tool” inversion)
