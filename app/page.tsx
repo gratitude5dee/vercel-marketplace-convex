@@ -19,6 +19,7 @@ export default function Home() {
               alt="Vercel Logo"
               width={32}
               height={32}
+              style={{ width: "auto", height: "auto" }}
               className="dark:hidden"
             />
             <Image
@@ -26,6 +27,7 @@ export default function Home() {
               alt="Vercel Logo"
               width={32}
               height={32}
+              style={{ width: "auto", height: "auto" }}
               className="hidden dark:block"
             />
           </div>
