@@ -75,14 +75,22 @@ export default function HomePage() {
     [workspaces],
   );
 
+  console.log("[v0] workspaces:", workspaces, "selectedWorkspace:", selectedWorkspace, "sessions:", sessions);
+
   const handleCreateWorkspace = async (event: FormEvent) => {
     event.preventDefault();
     const trimmed = workspaceName.trim();
     if (!trimmed) {
       return;
     }
-    const workspaceId = await createWorkspace({ name: trimmed });
-    setSelectedWorkspace(workspaceId);
+    try {
+      console.log("[v0] Creating workspace:", trimmed);
+      const workspaceId = await createWorkspace({ name: trimmed });
+      console.log("[v0] Created workspace:", workspaceId);
+      setSelectedWorkspace(workspaceId);
+    } catch (error) {
+      console.error("[v0] Error creating workspace:", error);
+    }
   };
 
   const handleCreateSession = async (event: FormEvent) => {
@@ -91,20 +99,27 @@ export default function HomePage() {
       return;
     }
 
-    const sessionId = await createSession({
-      workspaceId: selectedWorkspace,
-      goalText: goalText.trim(),
-      initialRules: [
-        "Keep coordination transparent and concise.",
-        "Request explicit authorization before major scope shifts.",
-      ],
-    });
+    try {
+      console.log("[v0] Creating session in workspace:", selectedWorkspace);
+      const sessionId = await createSession({
+        workspaceId: selectedWorkspace,
+        goalText: goalText.trim(),
+        initialRules: [
+          "Keep coordination transparent and concise.",
+          "Request explicit authorization before major scope shifts.",
+        ],
+      });
+      console.log("[v0] Created session:", sessionId);
 
-    await seedFromGoal({
-      sessionId,
-      nodes: defaultTaskSeed.nodes,
-      edges: defaultTaskSeed.edges,
-    });
+      await seedFromGoal({
+        sessionId,
+        nodes: defaultTaskSeed.nodes,
+        edges: defaultTaskSeed.edges,
+      });
+      console.log("[v0] Seeded graph for session:", sessionId);
+    } catch (error) {
+      console.error("[v0] Error creating session:", error);
+    }
   };
 
   return (

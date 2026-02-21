@@ -3,13 +3,16 @@
 import { ReactNode } from "react";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
 
-const deploymentUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+const rawUrl = process.env.NEXT_PUBLIC_CONVEX_URL ?? "";
+
+// The Convex integration may provide a .convex.site URL (for HTTP Actions),
+// but the ConvexReactClient needs .convex.cloud for the real-time WebSocket.
+// Automatically convert .convex.site -> .convex.cloud so queries/mutations work.
+const deploymentUrl = rawUrl.replace(/\.convex\.site\/?$/, ".convex.cloud");
 
 // Gracefully handle missing env var so the page still renders
 const convex = deploymentUrl
-  ? new ConvexReactClient(deploymentUrl, {
-      skipConvexDeploymentUrlCheck: true,
-    })
+  ? new ConvexReactClient(deploymentUrl)
   : null;
 
 function MissingConvexUrl({ children }: { children: ReactNode }) {
