@@ -1,50 +1,70 @@
-# MorphicFields
+# Aura (MorphicFields) — Human-Agent Task Management Dashboard
 
-MorphicFields is a production-oriented Next.js + Convex dashboard for orchestrating multi-human collaboration sessions driven by a Vapi voice manager.
+Aura is a production-oriented **Next.js + Convex** dashboard for orchestrating **multi-human collaboration sessions** led by a **voice Manager Agent** (Vapi). It’s built around the *Human Tool* paradigm: **the AI orchestrates** and selectively “calls” humans for the things humans are uniquely good at—preferences, judgment, creativity, and authorization.
 
-## Core capabilities
+---
 
-- Workspace-scoped multi-tenant session management
-- Realtime task graph (DAG) with dependencies and assignment/status updates
-- Transcript ingestion from Vapi webhook events
-- Manager decision logging and Human Tool invocation triggers
-- Constitution versioning and session metrics tracking
-- Recording/media persistence with replay view
-- Operational cron jobs (cleanup, recovery, daily rollups)
+## Why this exists (the “Human Tool” inversion)
+
+Most “human-in-the-loop” systems assume the human should orchestrate the AI. The Human Tool research argues the opposite: when the AI is strong at planning/execution, **human-led orchestration becomes the bottleneck** (attention, coordination overhead). Instead, the AI should lead and **invoke humans only at the right moments**.
+
+Aura implements that by:
+
+- Treating participants as structured **Human Tools** with explicit:
+  - **Capabilities** (judgment/creativity/external interaction)
+  - **Information** (domain expertise/private constraints/preferences)
+  - **Authority** (what requires approval / what can be shared)
+- Using **invocation triggers** to decide when to pull a human into the loop:
+  - **Capability complementarity**
+  - **Information exchange**
+  - **Authority control**
+- Driving interactions with **voice** (lower friction than typing), while the dashboard tracks state and decisions.
+
+---
+
+## What you get
+
+### Core product capabilities
+- **Workspace-scoped** multi-tenant session management
+- **Realtime task graph (DAG)** with dependencies, assignment, and status updates
+- **Transcript ingestion** from Vapi webhook events
+- **Manager decision logging** + Human Tool invocation triggers
+- **Constitution versioning** + session metrics tracking (evolving norms + guardrails)
+- **Recording/media persistence** with a replay view
+- **Operational cron jobs** (cleanup, recovery, daily rollups)
+
+### Human-Tool-aligned interaction behaviors (voice)
+Aura’s Manager Agent is designed to:
+- **Prime → Configure** at the start (context + collaboration style)
+- During work: **Probe → Cue → Elicit → Augment → Guide → Critique**
+- When wrong: **Explain → Correct → Reflect**
+- Ending: **Approve** (final confirmation before committing)
+
+---
 
 ## Routes
 
-- `/` workspace and session management
-- `/sessions/[sessionId]` live dashboard
-- `/sessions/[sessionId]/replay` replay view
-- `/server` reserved server-rendered route
+- `/` — workspace + session management
+- `/sessions/[sessionId]` — live dashboard
+- `/sessions/[sessionId]/replay` — replay view
+- `/server` — reserved server-rendered route
+
+---
+
+## Architecture (high level)
+
+- **Frontend:** Next.js (App Router) + React
+- **Backend:** Convex (realtime DB + actions + webhooks)
+- **Voice layer:** Vapi (webhooks for transcript + events)
+- **LLM:** configured via `MORPHICFIELDS_MANAGER_MODEL` (defaults to `claude-3-5-haiku-latest`)
+- **Agent framework:** `@convex-dev/agent`
+
+> Conceptually: Convex is the state machine + event bus; the dashboard is the control room; Vapi is the human interface; the Manager Agent is the orchestrator.
+
+---
 
 ## Local development
 
-1. Install dependencies:
-
+### 1) Install dependencies
 ```bash
 npm install
-```
-
-2. Configure environment variables:
-
-```bash
-cp .env.example .env.local
-```
-
-If you are not wiring auth immediately, set `DEV_AUTH_USER_ID` for local development identity fallback.
-
-3. Run frontend and backend:
-
-```bash
-npm run dev:full
-```
-
-## CI quality gates
-
-```bash
-npm run ci
-```
-
-This runs lint, typecheck, and unit/integration/e2e test suites.
