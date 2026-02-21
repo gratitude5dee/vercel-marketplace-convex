@@ -161,18 +161,33 @@ export const processVapiEvent = internalAction({
       }
 
       const callId = payload?.message?.call?.id;
-      const metadata = payload?.message?.metadata ?? payload?.metadata ?? {};
-      const metadataSessionId = payload?.sessionId ?? metadata?.sessionId;
+      const metadata =
+        payload?.message?.call?.metadata ??
+        payload?.message?.metadata ??
+        payload?.metadata ??
+        {};
+      const metadataSessionId = metadata?.sessionId ?? payload?.sessionId;
       const isWorkerCall = metadata?.role === "worker";
-      const workerCallId = metadata?.workerCallId;
+      let workerCallId = metadata?.workerCallId ?? null;
       let resolvedSessionId: string | null = metadataSessionId ?? null;
+
+      // If we have a callId, try to resolve via workerCalls table first
+      if (callId && !workerCallId) {
+        const workerCall = await ctx.runQuery(internalApi.workerCalls.getByVapiCallId, {
+          callId,
+        });
+        if (workerCall) {
+          workerCallId = workerCall._id;
+          resolvedSessionId = resolvedSessionId ?? workerCall.sessionId;
+        }
+      }
 
       if (!resolvedSessionId && callId) {
         resolvedSessionId = await ctx.runQuery(internalApi.sessions.getByCallId, { callId });
       }
 
       // --- Worker call routing ---
-      if (isWorkerCall && workerCallId) {
+      if ((isWorkerCall || workerCallId) && workerCallId) {
         if (messageType === "status-update") {
           const vapiStatus = payload?.message?.status ?? "";
           const statusMap: Record<string, string> = {
@@ -210,16 +225,21 @@ export const processVapiEvent = internalAction({
         }
 
         if (messageType === "end-of-call-report") {
+          const summary =
+            payload?.message?.summary ??
+            payload?.message?.call?.summary ??
+            "Call ended.";
+
           await ctx.runMutation(internalApi.workerCalls.updateStatus, {
             workerCallId,
             status: "completed",
-            summary: payload?.message?.summary ?? "Call ended.",
+            summary,
           });
 
           // Mark task as completed if the worker reported completion
           if (resolvedSessionId && metadata.taskKey) {
-            const summary = (payload?.message?.summary ?? "").toLowerCase();
-            if (summary.includes("complete") || summary.includes("done")) {
+            const lower = (typeof summary === "string" ? summary : "").toLowerCase();
+            if (lower.includes("complete") || lower.includes("done")) {
               await ctx.runMutation(internalApi.tasks.updateTaskStatusInternal, {
                 sessionId: resolvedSessionId,
                 taskKey: metadata.taskKey,

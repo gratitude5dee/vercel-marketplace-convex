@@ -98,21 +98,71 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* header */}
-      <header className="border-b border-foreground/10 px-6 py-4">
-        <h1 className="text-2xl font-bold font-sans text-balance">
-          MorphicFields
-        </h1>
-        <p className="text-sm text-foreground/60 mt-1 max-w-2xl leading-relaxed">
-          Production-oriented Vapi + Convex dashboard for multi-human agent
-          orchestration. Create a workspace, spin up a session, and open the
-          live session dashboard.
-        </p>
+      <header className="border-b border-foreground/10 px-6 py-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold font-sans text-balance">
+            MorphicFields
+          </h1>
+          <p className="text-sm text-foreground/60 mt-1 max-w-2xl leading-relaxed">
+            Production-oriented Vapi + Convex dashboard for multi-human agent
+            orchestration. Create a workspace, spin up a session, and open the
+            live session dashboard.
+          </p>
+        </div>
+        <VapiStatus />
       </header>
 
       {/* body */}
       <main className="max-w-3xl mx-auto px-6 py-10 flex flex-col gap-10">
         <Dashboard />
       </main>
+    </div>
+  );
+}
+
+/* ========================================================================= */
+/*  Vapi Status Indicator                                                    */
+/* ========================================================================= */
+
+function VapiStatus() {
+  const [status, setStatus] = useState<"checking" | "connected" | "missing">(
+    "checking",
+  );
+
+  useEffect(() => {
+    // Check if the Vapi API key is configured by hitting our own API route
+    fetch("/api/vapi-status")
+      .then((r) => r.json())
+      .then((data) => setStatus(data.connected ? "connected" : "missing"))
+      .catch(() => setStatus("missing"));
+  }, []);
+
+  const colors = {
+    checking: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    connected: "bg-green-500/20 text-green-400 border-green-500/30",
+    missing: "bg-red-500/20 text-red-400 border-red-500/30",
+  };
+
+  const labels = {
+    checking: "Checking Vapi...",
+    connected: "Vapi Connected",
+    missing: "Vapi Not Configured",
+  };
+
+  return (
+    <div
+      className={`shrink-0 flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium ${colors[status]}`}
+    >
+      <span
+        className={`inline-block w-1.5 h-1.5 rounded-full ${
+          status === "connected"
+            ? "bg-green-400"
+            : status === "missing"
+              ? "bg-red-400"
+              : "bg-yellow-400 animate-pulse"
+        }`}
+      />
+      {labels[status]}
     </div>
   );
 }
