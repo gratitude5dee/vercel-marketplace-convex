@@ -11,16 +11,16 @@ import { TaskGraphPanel } from "@/components/panels/TaskGraphPanel";
 // ---------------------------------------------------------------------------
 
 const demoTasks = [
-  { taskKey: "goal-brief", label: "Confirm Goal Brief", description: "Validate objective and decision boundaries.", status: "ready" as const, priority: 1, assigneeUserId: undefined },
-  { taskKey: "dependency-map", label: "Map Dependencies", description: "Capture sequencing and blockers.", status: "pending" as const, priority: 1, assigneeUserId: undefined },
-  { taskKey: "assignment", label: "Assign Owners", description: "Assign each critical-path task to an owner.", status: "pending" as const, priority: 2, assigneeUserId: undefined },
-  { taskKey: "alignment-review", label: "Run Alignment Review", description: "Confirm plan against constitution and stakeholder preferences.", status: "pending" as const, priority: 2, assigneeUserId: undefined },
+  { _id: "t1", taskKey: "goal-brief", label: "Confirm Goal Brief", description: "Validate objective and decision boundaries.", status: "ready" as const, priority: 1, assigneeUserId: undefined },
+  { _id: "t2", taskKey: "dependency-map", label: "Map Dependencies", description: "Capture sequencing and blockers.", status: "pending" as const, priority: 1, assigneeUserId: undefined },
+  { _id: "t3", taskKey: "assignment", label: "Assign Owners", description: "Assign each critical-path task to an owner.", status: "pending" as const, priority: 2, assigneeUserId: undefined },
+  { _id: "t4", taskKey: "alignment-review", label: "Run Alignment Review", description: "Confirm plan against constitution and stakeholder preferences.", status: "pending" as const, priority: 2, assigneeUserId: undefined },
 ];
 
 const demoDependencies = [
-  { fromTaskKey: "goal-brief", toTaskKey: "dependency-map" },
-  { fromTaskKey: "dependency-map", toTaskKey: "assignment" },
-  { fromTaskKey: "assignment", toTaskKey: "alignment-review" },
+  { _id: "e1", fromTaskKey: "goal-brief", toTaskKey: "dependency-map" },
+  { _id: "e2", fromTaskKey: "dependency-map", toTaskKey: "assignment" },
+  { _id: "e3", fromTaskKey: "assignment", toTaskKey: "alignment-review" },
 ];
 
 export default function SessionDashboardPage() {
