@@ -8,7 +8,18 @@
  * @module
  */
 
-import type * as myFunctions from "../myFunctions.js";
+import type * as constitutions from "../constitutions.js";
+import type * as jobs from "../jobs.js";
+import type * as manager from "../manager.js";
+import type * as managerActions from "../managerActions.js";
+import type * as media from "../media.js";
+import type * as metrics from "../metrics.js";
+import type * as personas from "../personas.js";
+import type * as sessions from "../sessions.js";
+import type * as tasks from "../tasks.js";
+import type * as transcripts from "../transcripts.js";
+import type * as webhooks from "../webhooks.js";
+import type * as workspaces from "../workspaces.js";
 
 import type {
   ApiFromModules,
@@ -17,16 +28,22 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  myFunctions: typeof myFunctions;
+  constitutions: typeof constitutions;
+  jobs: typeof jobs;
+  manager: typeof manager;
+  managerActions: typeof managerActions;
+  media: typeof media;
+  metrics: typeof metrics;
+  personas: typeof personas;
+  sessions: typeof sessions;
+  tasks: typeof tasks;
+  transcripts: typeof transcripts;
+  webhooks: typeof webhooks;
+  workspaces: typeof workspaces;
 }>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
  */
 export declare const api: FilterApi<
   typeof fullApi,
@@ -35,11 +52,6 @@ export declare const api: FilterApi<
 
 /**
  * A utility for referencing Convex functions in your app's internal API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = internal.myModule.myFunction;
- * ```
  */
 export declare const internal: FilterApi<
   typeof fullApi,
