@@ -3,15 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-// ---------------------------------------------------------------------------
 // Local-first MorphicFields homepage.
-//
-// The Convex functions must be pushed with `npx convex deploy` before the
-// real-time backend works. Until then the UI operates in a fully-functional
-// local-only demo mode so the full flow is testable inside v0.
-// When the backend IS deployed, swap the hooks in <Dashboard /> to the
-// Convex useQuery/useMutation equivalents.
-// ---------------------------------------------------------------------------
+// Operates in local-only demo mode (no Convex backend needed).
 
 /* ---------- types -------------------------------------------------------- */
 

@@ -1,7 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import ConvexClientProvider from "@/components/ConvexClientProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,10 +14,12 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MorphicFields",
-  description: "Vapi + Convex multi-human agent dashboard",
-  icons: {
-    icon: "/convex.svg",
-  },
+  description:
+    "Production-oriented Vapi + Convex dashboard for multi-human agent orchestration.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
 };
 
 export default function RootLayout({
@@ -28,8 +29,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+      >
+        {children}
       </body>
     </html>
   );

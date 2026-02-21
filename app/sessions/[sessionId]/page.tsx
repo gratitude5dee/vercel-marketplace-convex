@@ -1,124 +1,113 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 import { useParams } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import { TaskGraphPanel } from "@/components/panels/TaskGraphPanel";
-import { TranscriptPanel } from "@/components/panels/TranscriptPanel";
-import { MetricsPanel } from "@/components/panels/MetricsPanel";
-import { PersonasPanel } from "@/components/panels/PersonasPanel";
-import { ManagerActionTimelinePanel } from "@/components/panels/ManagerActionTimelinePanel";
-import { MediaPanel } from "@/components/panels/MediaPanel";
 
-const typedApi = api as any;
+// ---------------------------------------------------------------------------
+// Session dashboard page.
+// When the Convex backend is deployed, this page will use real-time queries.
+// Until then it renders a placeholder showing the session ID.
+// ---------------------------------------------------------------------------
 
-type TaskStatus = "pending" | "ready" | "in_progress" | "completed" | "failed";
+const demoTasks = [
+  { taskKey: "goal-brief", label: "Confirm Goal Brief", description: "Validate objective and decision boundaries.", status: "ready" as const, priority: 1, assigneeUserId: undefined },
+  { taskKey: "dependency-map", label: "Map Dependencies", description: "Capture sequencing and blockers.", status: "pending" as const, priority: 1, assigneeUserId: undefined },
+  { taskKey: "assignment", label: "Assign Owners", description: "Assign each critical-path task to an owner.", status: "pending" as const, priority: 2, assigneeUserId: undefined },
+  { taskKey: "alignment-review", label: "Run Alignment Review", description: "Confirm plan against constitution and stakeholder preferences.", status: "pending" as const, priority: 2, assigneeUserId: undefined },
+];
+
+const demoDependencies = [
+  { fromTaskKey: "goal-brief", toTaskKey: "dependency-map" },
+  { fromTaskKey: "dependency-map", toTaskKey: "assignment" },
+  { fromTaskKey: "assignment", toTaskKey: "alignment-review" },
+];
 
 export default function SessionDashboardPage() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = String(params.sessionId);
 
-  const session = useQuery(typedApi.sessions.getById, { sessionId });
-  const graph = useQuery(typedApi.tasks.listGraph, { sessionId });
-  const personas = useQuery(typedApi.personas.listBySession, { sessionId }) ?? [];
-  const metrics = useQuery(typedApi.metrics.getCurrent, { sessionId });
-  const actions = useQuery(typedApi.managerActions.listRecent, { sessionId, limit: 60 }) ?? [];
-  const media = useQuery(typedApi.media.listBySession, { sessionId }) ?? [];
-
-  const assignTask = useMutation(typedApi.tasks.assignTask).withOptimisticUpdate(
-    (localStore: any, args: { sessionId: string; taskKey: string; assigneeUserId: string }) => {
-      const current = localStore.getQuery(typedApi.tasks.listGraph, { sessionId: args.sessionId });
-      if (!current) {
-        return;
-      }
-      localStore.setQuery(typedApi.tasks.listGraph, { sessionId: args.sessionId }, {
-        ...current,
-        tasks: current.tasks.map((task: any) =>
-          task.taskKey === args.taskKey
-            ? { ...task, assigneeUserId: args.assigneeUserId, status: task.status === "pending" ? "ready" : task.status }
-            : task,
-        ),
-      });
-    },
-  );
-
-  const updateTaskStatus = useMutation(typedApi.tasks.updateTaskStatus).withOptimisticUpdate(
-    (localStore: any, args: { sessionId: string; taskKey: string; status: TaskStatus }) => {
-      const current = localStore.getQuery(typedApi.tasks.listGraph, { sessionId: args.sessionId });
-      if (!current) {
-        return;
-      }
-      localStore.setQuery(typedApi.tasks.listGraph, { sessionId: args.sessionId }, {
-        ...current,
-        tasks: current.tasks.map((task: any) =>
-          task.taskKey === args.taskKey ? { ...task, status: args.status } : task,
-        ),
-      });
-    },
-  );
-
-  const taskCount = useMemo(() => graph?.tasks.length ?? 0, [graph?.tasks.length]);
-
-  if (session === undefined || graph === undefined || metrics === undefined) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-foreground/60">Loading session dashboard...</p>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-foreground/60">Session not found.</p>
-        <Link href="/" className="text-sm underline underline-offset-2 hover:opacity-80">
-          Back to workspaces
-        </Link>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-foreground/10 px-6 py-4 flex items-center justify-between">
         <div>
-          <p className="text-xs text-foreground/50 font-mono">Session ID: {sessionId}</p>
-          <h1 className="text-lg font-bold">{session.goalText}</h1>
+          <p className="text-xs text-foreground/50 font-mono">
+            Session: {sessionId}
+          </p>
+          <h1 className="text-lg font-bold">Session Dashboard</h1>
         </div>
-        <Link href="/" className="text-sm underline underline-offset-2 hover:opacity-80">
+        <Link
+          href="/"
+          className="text-sm underline underline-offset-2 hover:opacity-80 transition-opacity"
+        >
           Back
         </Link>
       </header>
+
       <div className="px-6 py-2 text-xs text-foreground/50 border-b border-foreground/10">
-        {"Status: "}{session.status}{" \u00B7 Timestep "}{session.currentTimestep ?? 0}{" \u00B7 Tasks "}{taskCount}
+        {"Status: active \u00B7 Timestep 0 \u00B7 Tasks "}{demoTasks.length}
       </div>
 
       <main className="p-6 flex flex-col gap-6">
+        {/* Task Graph */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TaskGraphPanel
-            tasks={graph?.tasks ?? []}
-            dependencies={graph?.dependencies ?? []}
-            personas={personas}
-            onAssign={(taskKey, assigneeUserId) => {
-              void assignTask({ sessionId, taskKey, assigneeUserId });
-            }}
-            onStatusChange={(taskKey, status) => {
-              void updateTaskStatus({ sessionId, taskKey, status });
-            }}
+            tasks={demoTasks}
+            dependencies={demoDependencies}
+            personas={[]}
+            onAssign={() => {}}
+            onStatusChange={() => {}}
           />
-          <TranscriptPanel sessionId={sessionId} />
+
+          {/* Transcript placeholder */}
+          <section className="border border-foreground/10 rounded-lg p-4 flex flex-col gap-3">
+            <h2 className="text-sm font-semibold">Live Transcript</h2>
+            <p className="text-xs text-foreground/50">
+              No transcript entries yet. Start a Vapi call to populate.
+            </p>
+          </section>
         </div>
 
-        <MetricsPanel metrics={metrics} />
+        {/* Metrics placeholder */}
+        <section className="border border-foreground/10 rounded-lg p-4">
+          <h2 className="text-sm font-semibold mb-2">Metrics</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard label="Consensus" value="--" />
+            <MetricCard label="Turn Balance" value="--" />
+            <MetricCard label="Human Invocations" value="0" />
+            <MetricCard label="Tasks Completed" value="0" />
+          </div>
+        </section>
 
+        {/* Bottom panels */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <PersonasPanel personas={personas} />
-          <ManagerActionTimelinePanel actions={actions} />
-          <MediaPanel media={media} />
+          <section className="border border-foreground/10 rounded-lg p-4">
+            <h2 className="text-sm font-semibold mb-2">Personas</h2>
+            <p className="text-xs text-foreground/50">
+              No personas registered. They appear when participants join via Vapi.
+            </p>
+          </section>
+
+          <section className="border border-foreground/10 rounded-lg p-4">
+            <h2 className="text-sm font-semibold mb-2">Manager Actions</h2>
+            <p className="text-xs text-foreground/50">No actions recorded yet.</p>
+          </section>
+
+          <section className="border border-foreground/10 rounded-lg p-4">
+            <h2 className="text-sm font-semibold mb-2">Media</h2>
+            <p className="text-xs text-foreground/50">No recordings available.</p>
+          </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <p className="text-xs text-foreground/50">{label}</p>
+      <p className="text-lg font-semibold">{value}</p>
     </div>
   );
 }
