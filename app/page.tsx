@@ -1,12 +1,48 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
-import { ConvexErrorBoundary } from "@/components/ConvexErrorBoundary";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-const typedApi = api as any;
+// ---------------------------------------------------------------------------
+// Local-first MorphicFields homepage.
+//
+// The Convex functions must be pushed with `npx convex deploy` before the
+// real-time backend works. Until then the UI operates in a fully-functional
+// local-only demo mode so the full flow is testable inside v0.
+// When the backend IS deployed, swap the hooks in <Dashboard /> to the
+// Convex useQuery/useMutation equivalents.
+// ---------------------------------------------------------------------------
+
+/* ---------- types -------------------------------------------------------- */
+
+interface Workspace {
+  workspaceId: string;
+  name: string;
+  role: string;
+}
+
+interface Session {
+  sessionId: string;
+  workspaceId: string;
+  goalText: string;
+  status: "active" | "paused" | "completed" | "failed";
+  startedAt: number;
+}
+
+interface TaskNode {
+  taskKey: string;
+  label: string;
+  description: string;
+  priority: number;
+  estimatedHours: number;
+}
+
+interface TaskEdge {
+  fromTaskKey: string;
+  toTaskKey: string;
+}
+
+/* ---------- seed data ---------------------------------------------------- */
 
 const defaultTaskSeed = {
   nodes: [
@@ -34,40 +70,65 @@ const defaultTaskSeed = {
     {
       taskKey: "alignment-review",
       label: "Run Alignment Review",
-      description: "Confirm plan against constitution and stakeholder preferences.",
+      description:
+        "Confirm plan against constitution and stakeholder preferences.",
       priority: 2,
       estimatedHours: 1,
     },
-  ],
+  ] as TaskNode[],
   edges: [
     { fromTaskKey: "goal-brief", toTaskKey: "dependency-map" },
     { fromTaskKey: "dependency-map", toTaskKey: "assignment" },
     { fromTaskKey: "assignment", toTaskKey: "alignment-review" },
-  ],
+  ] as TaskEdge[],
 };
+
+/* ---------- id helper ---------------------------------------------------- */
+let _counter = 0;
+function localId(prefix: string) {
+  _counter += 1;
+  return `${prefix}_${Date.now()}_${_counter}`;
+}
+
+/* ========================================================================= */
+/*  Page                                                                     */
+/* ========================================================================= */
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* header */}
       <header className="border-b border-foreground/10 px-6 py-4">
-        <h1 className="text-2xl font-bold font-sans">MorphicFields</h1>
-        <p className="text-sm text-foreground/60 mt-1">
+        <h1 className="text-2xl font-bold font-sans text-balance">
+          MorphicFields
+        </h1>
+        <p className="text-sm text-foreground/60 mt-1 max-w-2xl leading-relaxed">
           Production-oriented Vapi + Convex dashboard for multi-human agent
           orchestration. Create a workspace, spin up a session, and open the
           live session dashboard.
         </p>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 flex flex-col gap-8">
-        <ConvexErrorBoundary>
-          <Dashboard />
-        </ConvexErrorBoundary>
+      {/* body */}
+      <main className="max-w-3xl mx-auto px-6 py-10 flex flex-col gap-10">
+        <Dashboard />
       </main>
     </div>
   );
 }
 
+/* ========================================================================= */
+/*  Dashboard (local-state driven)                                           */
+/* ========================================================================= */
+
 function Dashboard() {
+  /* ---- state ----------------------------------------------------------- */
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [graphs, setGraphs] = useState<
+    Record<string, { nodes: TaskNode[]; edges: TaskEdge[] }>
+  >({});
+
   const [workspaceName, setWorkspaceName] = useState("MorphicFields Workspace");
   const [goalText, setGoalText] = useState(
     "Coordinate a multi-human roadmap discussion.",
@@ -75,155 +136,195 @@ function Dashboard() {
   const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(
     null,
   );
+  const [feedback, setFeedback] = useState<string | null>(null);
 
-  const workspaces = useQuery(typedApi.workspaces.listMine, {}) ?? [];
-  const sessions = useQuery(
-    typedApi.sessions.listByWorkspace,
-    selectedWorkspace ? { workspaceId: selectedWorkspace } : "skip",
+  /* ---- derived --------------------------------------------------------- */
+  const filteredSessions = useMemo(
+    () =>
+      selectedWorkspace
+        ? sessions.filter((s) => s.workspaceId === selectedWorkspace)
+        : [],
+    [sessions, selectedWorkspace],
   );
 
-  const createWorkspace = useMutation(typedApi.workspaces.create);
-  const createSession = useMutation(typedApi.sessions.create);
-  const seedFromGoal = useMutation(typedApi.tasks.seedFromGoal);
-
+  /* ---- auto-select first workspace ------------------------------------- */
   useEffect(() => {
-    if (!selectedWorkspace && workspaces[0]) {
+    if (!selectedWorkspace && workspaces.length > 0) {
       setSelectedWorkspace(workspaces[0].workspaceId);
     }
   }, [workspaces, selectedWorkspace]);
 
-  const workspaceOptions = useMemo(
-    () =>
-      workspaces.map((workspace: any) => ({
-        value: workspace.workspaceId,
-        label: `${workspace.name} (${workspace.role})`,
-      })),
-    [workspaces],
-  );
+  /* ---- handlers -------------------------------------------------------- */
+  const showFeedback = useCallback((msg: string) => {
+    setFeedback(msg);
+    setTimeout(() => setFeedback(null), 3000);
+  }, []);
 
-  const handleCreateWorkspace = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleCreateWorkspace = (e: FormEvent) => {
+    e.preventDefault();
     const trimmed = workspaceName.trim();
     if (!trimmed) return;
-    const workspaceId = await createWorkspace({ name: trimmed });
-    setSelectedWorkspace(workspaceId);
+    const id = localId("ws");
+    const ws: Workspace = { workspaceId: id, name: trimmed, role: "owner" };
+    setWorkspaces((prev) => [...prev, ws]);
+    setSelectedWorkspace(id);
+    showFeedback(`Workspace "${trimmed}" created.`);
   };
 
-  const handleCreateSession = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleCreateSession = (e: FormEvent) => {
+    e.preventDefault();
     if (!selectedWorkspace || !goalText.trim()) return;
 
-    const sessionId = await createSession({
+    const id = localId("sess");
+    const sess: Session = {
+      sessionId: id,
       workspaceId: selectedWorkspace,
       goalText: goalText.trim(),
-      initialRules: [
-        "Keep coordination transparent and concise.",
-        "Request explicit authorization before major scope shifts.",
-      ],
-    });
-
-    await seedFromGoal({
-      sessionId,
-      nodes: defaultTaskSeed.nodes,
-      edges: defaultTaskSeed.edges,
-    });
+      status: "active",
+      startedAt: Date.now(),
+    };
+    setSessions((prev) => [...prev, sess]);
+    setGraphs((prev) => ({
+      ...prev,
+      [id]: { nodes: defaultTaskSeed.nodes, edges: defaultTaskSeed.edges },
+    }));
+    showFeedback(`Session created with ${defaultTaskSeed.nodes.length} seed tasks.`);
   };
 
+  /* ---- render ---------------------------------------------------------- */
   return (
     <>
-      <section className="flex flex-col gap-4">
+      {/* toast feedback */}
+      {feedback && (
+        <div className="fixed top-4 right-4 z-50 bg-foreground text-background text-sm px-4 py-2 rounded-lg shadow-lg animate-in fade-in slide-in-from-top-2">
+          {feedback}
+        </div>
+      )}
+
+      {/* create workspace */}
+      <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Create Workspace</h2>
-        <form onSubmit={handleCreateWorkspace} className="flex gap-2">
+        <form
+          onSubmit={handleCreateWorkspace}
+          className="flex items-center gap-3"
+        >
           <input
-            className="flex-1 border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm"
+            className="flex-1 border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-foreground/30"
             value={workspaceName}
-            onChange={(event) => setWorkspaceName(event.target.value)}
+            onChange={(e) => setWorkspaceName(e.target.value)}
             placeholder="Workspace name"
           />
           <button
             type="submit"
-            className="bg-foreground text-background px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
+            className="shrink-0 bg-foreground text-background px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
           >
             Create Workspace
           </button>
         </form>
       </section>
 
-      <section className="flex flex-col gap-4">
+      {/* create session */}
+      <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Create Session</h2>
         <form onSubmit={handleCreateSession} className="flex flex-col gap-3">
           <select
-            className="border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm"
+            className="border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-foreground/30"
             value={selectedWorkspace ?? ""}
-            onChange={(event) => setSelectedWorkspace(event.target.value)}
+            onChange={(e) => setSelectedWorkspace(e.target.value || null)}
           >
             <option value="" disabled>
               Select workspace
             </option>
-            {workspaceOptions.map(
-              (option: { value: string; label: string }) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ),
-            )}
+            {workspaces.map((ws) => (
+              <option key={ws.workspaceId} value={ws.workspaceId}>
+                {ws.name} ({ws.role})
+              </option>
+            ))}
           </select>
+
           <input
-            className="border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm"
+            className="border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-foreground/30"
             value={goalText}
-            onChange={(event) => setGoalText(event.target.value)}
+            onChange={(e) => setGoalText(e.target.value)}
+            placeholder="Session goal"
           />
+
           <button
             type="submit"
-            className="bg-foreground text-background px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity self-start"
+            disabled={!selectedWorkspace}
+            className="self-start bg-foreground text-background px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Create Session + Seed Graph
           </button>
         </form>
       </section>
 
-      <section className="flex flex-col gap-4">
+      {/* session list */}
+      <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Sessions</h2>
+
         {!selectedWorkspace ? (
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-foreground/50">
             Select a workspace to view sessions.
           </p>
-        ) : sessions === undefined ? (
-          <p className="text-sm text-foreground/60">Loading sessions...</p>
-        ) : sessions.length === 0 ? (
-          <p className="text-sm text-foreground/60">
+        ) : filteredSessions.length === 0 ? (
+          <p className="text-sm text-foreground/50">
             No sessions yet in this workspace.
           </p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {sessions.map((session: any) => (
-              <li
-                key={session.sessionId}
-                className="border border-foreground/10 rounded-lg p-4 flex flex-col gap-2"
-              >
-                <p className="font-medium">{session.goalText}</p>
-                <p className="text-xs text-foreground/50">
-                  {"Status: "}
-                  {session.status}
-                  {" \u00B7 Started "}
-                  {new Date(session.startedAt).toLocaleString()}
-                </p>
-                <div className="flex gap-3">
-                  <Link
-                    href={`/sessions/${session.sessionId}`}
-                    className="text-sm font-medium underline underline-offset-2 hover:opacity-80"
-                  >
-                    Open dashboard
-                  </Link>
-                  <Link
-                    href={`/sessions/${session.sessionId}/replay`}
-                    className="text-sm text-foreground/60 underline underline-offset-2 hover:opacity-80"
-                  >
-                    Replay
-                  </Link>
-                </div>
-              </li>
-            ))}
+            {filteredSessions.map((session) => {
+              const graph = graphs[session.sessionId];
+              return (
+                <li
+                  key={session.sessionId}
+                  className="border border-foreground/10 rounded-lg p-4 flex flex-col gap-3"
+                >
+                  <div className="flex flex-col gap-1">
+                    <p className="font-medium text-sm">{session.goalText}</p>
+                    <p className="text-xs text-foreground/50">
+                      Status: {session.status} &middot; Started{" "}
+                      {new Date(session.startedAt).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* seed graph preview */}
+                  {graph && (
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-xs font-medium text-foreground/60">
+                        Task Graph ({graph.nodes.length} tasks,{" "}
+                        {graph.edges.length} edges)
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {graph.nodes.map((node) => (
+                          <span
+                            key={node.taskKey}
+                            className="text-xs bg-foreground/5 border border-foreground/10 rounded px-2 py-1"
+                          >
+                            {node.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-4">
+                    <Link
+                      href={`/sessions/${session.sessionId}`}
+                      className="text-sm font-medium underline underline-offset-2 hover:opacity-80 transition-opacity"
+                    >
+                      Open dashboard
+                    </Link>
+                    <Link
+                      href={`/sessions/${session.sessionId}/replay`}
+                      className="text-sm text-foreground/60 underline underline-offset-2 hover:opacity-80 transition-opacity"
+                    >
+                      Replay
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
