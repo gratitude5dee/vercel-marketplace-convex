@@ -1,339 +1,214 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
 import Link from "next/link";
-import Image from "next/image";
-import { useState, useEffect, useRef } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
-export default function Home() {
-  return (
-    <>
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md p-4 border-b border-slate-200 dark:border-slate-700 flex flex-row justify-between items-center shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-3">
-            <Image src="/convex.svg" alt="Convex Logo" width={32} height={32} />
-            <div className="w-px h-8 bg-slate-300 dark:bg-slate-600"></div>
-            <Image
-              src="/vercel-icon-light.svg"
-              alt="Vercel Logo"
-              width={32}
-              height={32}
-              style={{ width: "auto", height: "auto" }}
-              className="dark:hidden"
-            />
-            <Image
-              src="/vercel-icon-dark.svg"
-              alt="Vercel Logo"
-              width={32}
-              height={32}
-              style={{ width: "auto", height: "auto" }}
-              className="hidden dark:block"
-            />
-          </div>
-          <h1 className="font-semibold text-slate-800 dark:text-slate-200">
-            Convex + Vercel
-          </h1>
-        </div>
-        <div className="flex gap-2 items-center">
-          <a
-            href={`https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fget-convex%2Fvercel-marketplace-convex&project-name=vercel-with-convex&repository-name=vercel-with-convex&demo-title=Convex%20with%20Vercel&demo-description=A%20minimal%20template%20showcasing%20using%20Convex%20with%20Vercel&demo-url=https%3A%2F%2Fconvex-vercel-template-demo.previews.convex.dev%2F&products=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22convex%22%2C%22productSlug%22%3A%22convex%22%2C%22protocol%22%3A%22storage%22%7D%5D`}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element*/}
-            <img src="https://vercel.com/button" alt="Deploy with Vercel" />
-          </a>
-          <AuthPopoverButton />
-        </div>
-      </header>
-      <main className="p-8 flex flex-col gap-8">
-        <Content />
-      </main>
-    </>
+const typedApi = api as any;
+
+const defaultTaskSeed = {
+  nodes: [
+    {
+      taskKey: "goal-brief",
+      label: "Confirm Goal Brief",
+      description: "Validate objective and decision boundaries.",
+      priority: 1,
+      estimatedHours: 1,
+    },
+    {
+      taskKey: "dependency-map",
+      label: "Map Dependencies",
+      description: "Capture sequencing and blockers.",
+      priority: 1,
+      estimatedHours: 2,
+    },
+    {
+      taskKey: "assignment",
+      label: "Assign Owners",
+      description: "Assign each critical-path task to an owner.",
+      priority: 2,
+      estimatedHours: 1,
+    },
+    {
+      taskKey: "alignment-review",
+      label: "Run Alignment Review",
+      description: "Confirm plan against constitution and stakeholder preferences.",
+      priority: 2,
+      estimatedHours: 1,
+    },
+  ],
+  edges: [
+    { fromTaskKey: "goal-brief", toTaskKey: "dependency-map" },
+    { fromTaskKey: "dependency-map", toTaskKey: "assignment" },
+    { fromTaskKey: "assignment", toTaskKey: "alignment-review" },
+  ],
+};
+
+export default function HomePage() {
+  const [workspaceName, setWorkspaceName] = useState("MorphicFields Workspace");
+  const [goalText, setGoalText] = useState("Coordinate a multi-human roadmap discussion.");
+  const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
+
+  const workspaces = useQuery(typedApi.workspaces.listMine, {}) ?? [];
+  const sessions = useQuery(
+    typedApi.sessions.listByWorkspace,
+    selectedWorkspace ? { workspaceId: selectedWorkspace } : "skip",
   );
-}
 
-function Content() {
-  const { viewer, numbers } =
-    useQuery(api.myFunctions.listNumbers, {
-      count: 10,
-    }) ?? {};
-  const addNumber = useMutation(api.myFunctions.addNumber);
-
-  if (viewer === undefined || numbers === undefined) {
-    return (
-      <div className="mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-          <div
-            className="w-2 h-2 bg-slate-500 rounded-full animate-bounce"
-            style={{ animationDelay: "0.1s" }}
-          ></div>
-          <div
-            className="w-2 h-2 bg-slate-600 rounded-full animate-bounce"
-            style={{ animationDelay: "0.2s" }}
-          ></div>
-          <p className="ml-2 text-slate-600 dark:text-slate-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-6 max-w-lg mx-auto">
-      <div>
-        <h2 className="font-bold text-xl text-slate-800 dark:text-slate-200">
-          Welcome!
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 mt-2">
-          This demo app generates random numbers and stores them in your Convex
-          database. This demo can be easily deployed to Vercel using the Vercel
-          Marketplace.
-        </p>
-      </div>
-
-      <div className="h-px bg-slate-200 dark:bg-slate-700"></div>
-
-      <div className="flex flex-col gap-4">
-        <h2 className="font-semibold text-xl text-slate-800 dark:text-slate-200">
-          Number generator
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          Click the button below to generate a new number. The data is persisted
-          in the Convex cloud database - open this page in another window and
-          see the data sync automatically!
-        </p>
-        <button
-          className="bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white text-sm font-medium px-6 py-3 rounded-lg cursor-pointer transition-all duration-200 shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
-          onClick={() => {
-            void addNumber({ value: Math.floor(Math.random() * 10) });
-          }}
-        >
-          + Generate random number
-        </button>
-        <div className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl p-4 shadow-sm">
-          <p className="font-semibold text-slate-800 dark:text-slate-200 mb-2">
-            Newest Numbers
-          </p>
-          <p className="text-slate-700 dark:text-slate-300 font-mono text-lg">
-            {numbers?.length === 0
-              ? "Click the button to generate a number!"
-              : (numbers?.join(", ") ?? "...")}
-          </p>
-        </div>
-      </div>
-
-      <div className="h-px bg-slate-200 dark:bg-slate-700"></div>
-
-      <div className="flex flex-col gap-3">
-        <h2 className="font-semibold text-xl text-slate-800 dark:text-slate-200">
-          Making changes
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          Edit{" "}
-          <code className="text-sm font-semibold font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600">
-            convex/myFunctions.ts
-          </code>{" "}
-          to change the backend.
-        </p>
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          Edit{" "}
-          <code className="text-sm font-semibold font-mono bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600">
-            app/page.tsx
-          </code>{" "}
-          to change the frontend.
-        </p>
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          See the{" "}
-          <Link
-            href="/server"
-            className="text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 font-medium underline decoration-2 underline-offset-2 transition-colors"
-          >
-            /server route
-          </Link>{" "}
-          for an example of loading data in a server component
-        </p>
-      </div>
-
-      <div className="h-px bg-slate-200 dark:bg-slate-700"></div>
-
-      <div className="flex flex-col gap-4">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">
-          Useful resources
-        </h2>
-        <div className="flex gap-4">
-          <div className="flex flex-col gap-4 w-1/2">
-            <ResourceCard
-              title="Convex docs"
-              description="Read comprehensive documentation for all Convex features."
-              href="https://docs.convex.dev/home"
-            />
-            <ResourceCard
-              title="Stack articles"
-              description="Learn about best practices, use cases, and more from a growing
-            collection of articles, videos, and walkthroughs."
-              href="https://www.typescriptlang.org/docs/handbook/2/basic-types.html"
-            />
-          </div>
-          <div className="flex flex-col gap-4 w-1/2">
-            <ResourceCard
-              title="Templates"
-              description="Browse our collection of templates to get started quickly."
-              href="https://www.convex.dev/templates"
-            />
-            <ResourceCard
-              title="Discord"
-              description="Join our developer community to ask questions, trade tips & tricks,
-            and show off your projects."
-              href="https://www.convex.dev/community"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ResourceCard({
-  title,
-  description,
-  href,
-}: {
-  title: string;
-  description: string;
-  href: string;
-}) {
-  return (
-    <a
-      href={href}
-      className="flex flex-col gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 p-5 rounded-xl h-36 overflow-auto border border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] group cursor-pointer"
-    >
-      <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
-        {title} →
-      </h3>
-      <p className="text-xs text-slate-600 dark:text-slate-400">
-        {description}
-      </p>
-    </a>
-  );
-}
-
-function AuthPopoverButton() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedAuth, setSelectedAuth] = useState<
-    "authkit" | "clerk" | "convexauth"
-  >("authkit");
-  const [copied, setCopied] = useState(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  const commands = {
-    authkit: "npm create convex@latest -- --template nextjs-authkit",
-    clerk: "npm create convex@latest -- --template nextjs-clerk",
-    convexauth: "npm create convex@latest -- --template nextjs-convexauth",
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(commands[selectedAuth]);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const createWorkspace = useMutation(typedApi.workspaces.create);
+  const createSession = useMutation(typedApi.sessions.create);
+  const seedFromGoal = useMutation(typedApi.tasks.seedFromGoal);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
+    if (!selectedWorkspace && workspaces[0]) {
+      setSelectedWorkspace(workspaces[0].workspaceId);
+    }
+  }, [workspaces, selectedWorkspace]);
 
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+  const workspaceOptions = useMemo(
+    () =>
+      workspaces.map((workspace: any) => ({
+        value: workspace.workspaceId,
+        label: `${workspace.name} (${workspace.role})`,
+      })),
+    [workspaces],
+  );
+
+  const handleCreateWorkspace = async (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = workspaceName.trim();
+    if (!trimmed) {
+      return;
+    }
+    const workspaceId = await createWorkspace({ name: trimmed });
+    setSelectedWorkspace(workspaceId);
+  };
+
+  const handleCreateSession = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selectedWorkspace || !goalText.trim()) {
+      return;
     }
 
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isOpen]);
+    const sessionId = await createSession({
+      workspaceId: selectedWorkspace,
+      goalText: goalText.trim(),
+      initialRules: [
+        "Keep coordination transparent and concise.",
+        "Request explicit authorization before major scope shifts.",
+      ],
+    });
+
+    await seedFromGoal({
+      sessionId,
+      nodes: defaultTaskSeed.nodes,
+      edges: defaultTaskSeed.edges,
+    });
+  };
 
   return (
-    <div className="relative" ref={popoverRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="bg-green-600 dark:bg-green-600 dark:hover:bg-green-500 text-white text-sm font-medium px-3 py-1.5 rounded-md cursor-pointer transition-all duration-200"
-      >
-        Want Auth?
-      </button>
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-foreground/10 px-6 py-4">
+        <h1 className="text-2xl font-bold font-sans">MorphicFields</h1>
+        <p className="text-sm text-foreground/60 mt-1">
+          Production-oriented Vapi + Convex dashboard for multi-human agent orchestration.
+          Create a workspace, spin up a session, and open the live session dashboard.
+        </p>
+      </header>
 
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-[560px] bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl shadow-xl z-50 p-6">
-          <p className="text-slate-700 dark:text-slate-300 text-sm mb-4">
-            You can create a copy of this project with auth integrated by using
-            this command.
-          </p>
-
-          <div className="flex flex-col gap-3 mb-4">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="auth"
-                value="authkit"
-                checked={selectedAuth === "authkit"}
-                onChange={(e) => setSelectedAuth(e.target.value as "authkit")}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <Image src="/workos.svg" alt="WorkOS" width={20} height={20} />
-              <span className="text-slate-700 dark:text-slate-300 text-sm">
-                WorkOS AuthKit
-              </span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="auth"
-                value="clerk"
-                checked={selectedAuth === "clerk"}
-                onChange={(e) => setSelectedAuth(e.target.value as "clerk")}
-                className="w-4 h-4 cursor-pointer"
-              />
-              <Image src="/clerk.svg" alt="Clerk" width={20} height={20} />
-              <span className="text-slate-700 dark:text-slate-300 text-sm">
-                Clerk
-              </span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="auth"
-                value="convexauth"
-                checked={selectedAuth === "convexauth"}
-                onChange={(e) =>
-                  setSelectedAuth(e.target.value as "convexauth")
-                }
-                className="w-4 h-4 cursor-pointer"
-              />
-              <Image src="/convex.svg" alt="Convex" width={20} height={20} />
-              <span className="text-slate-700 dark:text-slate-300 text-sm">
-                Convex Auth
-              </span>
-            </label>
-          </div>
-
-          <div className="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg p-3 flex items-center justify-between gap-2">
-            <code className="text-xs text-slate-700 dark:text-slate-300 font-mono break-all">
-              {commands[selectedAuth]}
-            </code>
+      <main className="max-w-4xl mx-auto px-6 py-8 flex flex-col gap-8">
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold">Create Workspace</h2>
+          <form onSubmit={handleCreateWorkspace} className="flex gap-2">
+            <input
+              className="flex-1 border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm"
+              value={workspaceName}
+              onChange={(event) => setWorkspaceName(event.target.value)}
+              placeholder="Workspace name"
+            />
             <button
-              onClick={handleCopy}
-              className="bg-slate-600 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs px-3 py-1 rounded cursor-pointer transition-colors flex-shrink-0"
+              type="submit"
+              className="bg-foreground text-background px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
             >
-              {copied ? "Copied!" : "Copy"}
+              Create Workspace
             </button>
-          </div>
-        </div>
-      )}
+          </form>
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold">Create Session</h2>
+          <form onSubmit={handleCreateSession} className="flex flex-col gap-3">
+            <select
+              className="border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm"
+              value={selectedWorkspace ?? ""}
+              onChange={(event) => setSelectedWorkspace(event.target.value)}
+            >
+              <option value="" disabled>
+                Select workspace
+              </option>
+              {workspaceOptions.map((option: { value: string; label: string }) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <input
+              className="border border-foreground/20 rounded-md px-3 py-2 bg-background text-foreground text-sm"
+              value={goalText}
+              onChange={(event) => setGoalText(event.target.value)}
+            />
+            <button
+              type="submit"
+              className="bg-foreground text-background px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity self-start"
+            >
+              Create Session + Seed Graph
+            </button>
+          </form>
+        </section>
+
+        <section className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold">Sessions</h2>
+          {!selectedWorkspace ? (
+            <p className="text-sm text-foreground/60">Select a workspace to view sessions.</p>
+          ) : sessions === undefined ? (
+            <p className="text-sm text-foreground/60">Loading sessions...</p>
+          ) : sessions.length === 0 ? (
+            <p className="text-sm text-foreground/60">No sessions yet in this workspace.</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {sessions.map((session: any) => (
+                <li
+                  key={session.sessionId}
+                  className="border border-foreground/10 rounded-lg p-4 flex flex-col gap-2"
+                >
+                  <p className="font-medium">{session.goalText}</p>
+                  <p className="text-xs text-foreground/50">
+                    {"Status: "}
+                    {session.status}
+                    {" \u00B7 Started "}
+                    {new Date(session.startedAt).toLocaleString()}
+                  </p>
+                  <div className="flex gap-3">
+                    <Link
+                      href={`/sessions/${session.sessionId}`}
+                      className="text-sm font-medium underline underline-offset-2 hover:opacity-80"
+                    >
+                      Open dashboard
+                    </Link>
+                    <Link
+                      href={`/sessions/${session.sessionId}/replay`}
+                      className="text-sm text-foreground/60 underline underline-offset-2 hover:opacity-80"
+                    >
+                      Replay
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
     </div>
   );
 }

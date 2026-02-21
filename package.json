@@ -8,9 +8,16 @@
     "dev:full": "npm-run-all --parallel dev dev:backend",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ignore-pattern \"convex/_generated/**\""
+    "lint": "eslint . --ignore-pattern \"convex/_generated/**\"",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --test tests/unit/**/*.test.mjs",
+    "test:integration": "node --test tests/integration/**/*.test.mjs",
+    "test:e2e": "node --test tests/e2e/**/*.test.mjs",
+    "test": "npm-run-all test:unit test:integration test:e2e",
+    "ci": "npm-run-all lint typecheck test"
   },
   "dependencies": {
+    "@convex-dev/agent": "^0.5.0",
     "convex": "^1.31.2",
     "next": "16.1.1",
     "react": "^19.2.3",
