@@ -313,6 +313,46 @@ export const incrementTimestep = internalMutation({
   },
 });
 
+export const getByIdInternal = internalQuery({
+  args: {
+    sessionId: v.id("sessions"),
+  },
+  returns: v.union(
+    v.object({
+      sessionId: v.id("sessions"),
+      workspaceId: v.id("workspaces"),
+      goalText: v.string(),
+      status: v.union(
+        v.literal("active"),
+        v.literal("paused"),
+        v.literal("completed"),
+        v.literal("failed"),
+      ),
+      startedAt: v.number(),
+      endedAt: v.optional(v.number()),
+      vapiCallId: v.optional(v.string()),
+      currentTimestep: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session) {
+      return null;
+    }
+    return {
+      sessionId: session._id,
+      workspaceId: session.workspaceId,
+      goalText: session.goalText,
+      status: session.status,
+      startedAt: session.startedAt,
+      endedAt: session.endedAt,
+      vapiCallId: session.vapiCallId,
+      currentTimestep: session.currentTimestep,
+    };
+  },
+});
+
 export const getByCallId = internalQuery({
   args: {
     callId: v.string(),

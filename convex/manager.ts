@@ -7,10 +7,14 @@ import {
   invocationTriggerValidator,
   managerActionTypeValidator,
 } from "./lib/contracts";
+import { buildManagerPrompt } from "./lib/managerTemplates";
+import type { BehaviorTag } from "./lib/contracts";
 
 type Graph = {
   tasks: Array<{
     taskKey: string;
+    label: string;
+    description?: string;
     status: "pending" | "ready" | "in_progress" | "completed" | "failed";
     priority: number;
     assigneeUserId?: string;
@@ -171,6 +175,52 @@ function parseDecision(text: string | null, fallback: ReturnType<typeof fallback
   }
 }
 
+/**
+ * Infer the interaction behavior tag (Paper Fig. 7) from context.
+ * Temporal stages: Prime > Configure > Probe > Cue > Elicit > Augment > Guide > Critique
+ * Error recovery: Explain > Correct > Reflect
+ * Ending: Approve
+ */
+function inferBehaviorTag(
+  actionType: string,
+  trigger: string,
+  text: string,
+  timestep: number,
+): BehaviorTag {
+  const lower = text.toLowerCase();
+
+  // Early session stages
+  if (timestep <= 1) return "prime";
+  if (timestep <= 3) return "configure";
+
+  // Error recovery
+  if (lower.includes("wrong") || lower.includes("mistake") || lower.includes("incorrect")) return "correct";
+  if (lower.includes("let me explain") || lower.includes("because")) return "explain";
+  if (lower.includes("looking back") || lower.includes("retrospect")) return "reflect";
+
+  // Ending
+  if (lower.includes("final") || lower.includes("approve") || lower.includes("confirm all")) return "approve";
+
+  // Action-specific mappings
+  if (actionType === "INVOKE_HUMAN") {
+    if (trigger === "capability") return "elicit";
+    if (trigger === "information") return "probe";
+    if (trigger === "authority") return "cue";
+    return "probe";
+  }
+
+  if (actionType === "ASSIGN") return "guide";
+  if (actionType === "UPDATE") return "augment";
+  if (actionType === "SPEAK") {
+    if (lower.includes("?")) return "probe";
+    if (lower.includes("suggest") || lower.includes("recommend")) return "guide";
+    return "augment";
+  }
+  if (actionType === "DECOMPOSE") return "guide";
+
+  return "augment";
+}
+
 function inferHumanInvocation(chunk: string, personas: Persona[]) {
   const lower = chunk.toLowerCase();
 
@@ -297,12 +347,19 @@ export const processFinalTranscript = internalAction({
         },
       });
 
+      const invokeBehavior = inferBehaviorTag(
+        "INVOKE_HUMAN",
+        invocation.trigger,
+        invocation.question,
+        (await ctx.runQuery(internalApi.sessions.getByIdInternal, { sessionId: args.sessionId }) as any)?.currentTimestep ?? 0,
+      );
+
       await ctx.runMutation(internalApi.transcripts.appendFromWebhook, {
         sessionId: args.sessionId,
         role: "manager",
         speakerId: "manager",
         text: invocation.question,
-        behaviorTag: "probe",
+        behaviorTag: invokeBehavior,
       });
 
       await ctx.runMutation(internalApi.metrics.recompute, {
@@ -316,17 +373,22 @@ export const processFinalTranscript = internalAction({
       };
     }
 
-    const prompt = `You are the MorphicFields manager agent.
-Latest transcript from ${args.speakerId}: ${args.text}
-Open tasks: ${JSON.stringify(graph.tasks)}
-Dependencies: ${JSON.stringify(graph.dependencies)}
-Norms: ${JSON.stringify(constitution?.rules ?? [])}
-Recent discussion:
-${recentTranscript.map((line) => `- ${line.text}`).join("\n")}
+    // Resolve session for timestep
+    const session = await ctx.runQuery(internalApi.sessions.getByIdInternal, {
+      sessionId: args.sessionId,
+    }) as { goalText: string; currentTimestep?: number } | null;
 
-Return JSON with keys: actionType, trigger, taskKey, assigneeUserId, message.
-Use one action only: ASSIGN | UPDATE | SPEAK | NONE.
-Use trigger: workflow or none.`;
+    const prompt = buildManagerPrompt({
+      goalText: session?.goalText ?? "Unknown goal",
+      tasks: graph.tasks,
+      dependencies: graph.dependencies,
+      participants: personas,
+      constitution: constitution
+        ? { rules: constitution.rules, stabilityScore: constitution.stabilityScore }
+        : null,
+      recentTranscript: recentTranscript.map((line) => line.text),
+      currentTimestep: session?.currentTimestep ?? 0,
+    }) + `\n\nLatest transcript from ${args.speakerId}: ${args.text}`;
 
     const fallback = fallbackDecision(args.text, graph, personas);
     const llmRaw = await callAnthropicDecision(prompt);
@@ -364,12 +426,19 @@ Use trigger: workflow or none.`;
     });
 
     if (decision.message) {
+      const decisionBehavior = inferBehaviorTag(
+        decision.actionType,
+        decision.trigger,
+        decision.message,
+        session?.currentTimestep ?? 0,
+      );
+
       await ctx.runMutation(internalApi.transcripts.appendFromWebhook, {
         sessionId: args.sessionId,
         role: "manager",
         speakerId: "manager",
         text: decision.message,
-        behaviorTag: decision.actionType === "SPEAK" ? "guide" : "augment",
+        behaviorTag: decisionBehavior,
       });
     }
 
